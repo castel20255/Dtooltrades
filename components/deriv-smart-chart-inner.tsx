@@ -4,9 +4,15 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 
 import classNames from 'classnames'
 import { ChartTitle, SmartChart, setSmartChartsPublicPath } from '@deriv-com/smartcharts-champion'
-import '@deriv-com/smartcharts-champion/dist/smartcharts.css'
 import { derivWebSocket } from '@/lib/deriv-websocket-manager'
 import { chartWebSocket } from '@/lib/chart-websocket-manager'
+
+// Load smartcharts CSS dynamically on client-side to avoid webpack build issues
+if (typeof window !== 'undefined') {
+  import('@deriv-com/smartcharts-champion/dist/smartcharts.css').catch(e => {
+    console.warn("[v0] Failed to load smartcharts CSS:", e)
+  })
+}
 
 // Initialize the path where SmartCharts expects its fonts and binary shaders to live
 if (typeof window !== 'undefined') {
@@ -322,22 +328,57 @@ export default function DerivSmartChartInner({
 
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-  
-  console.log("SMARTCHART_EXPORT_INSPECT:", { 
-    type: typeof SmartChart, 
-    keys: SmartChart ? Object.keys(SmartChart) : 'null',
-    isReactElement: SmartChart && SmartChart.$$typeof ? true : false
-  })
 
   if (!mounted) return null
 
-  // SafeSmartChart wrapper to catch runtime errors
-  const SafeSmartChart = () => {
+  // Validate all required data before rendering SmartChart
+  const isSmartChartReady = () => {
+    if (!isEngineReady) return false
+    if (!activeSymbols || !Array.isArray(activeSymbols) || activeSymbols.length === 0) return false
+    if (!isConnectionOpened) return false
+    if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') return false
+    if (!requestAPI || typeof requestAPI !== 'function') return false
+    if (!getQuotes || typeof getQuotes !== 'function') return false
+    if (!subscribeQuotes || typeof subscribeQuotes !== 'function') return false
+    if (!unsubscribeQuotes || typeof unsubscribeQuotes !== 'function') return false
+    if (!getMarketsOrder || typeof getMarketsOrder !== 'function') return false
+    if (!getSubmarketsOrder || typeof getSubmarketsOrder !== 'function') return false
+    return true
+  }
+
+  // Defensive wrapper for all callbacks to prevent toString errors
+  const safeGetSymbolsOrder = useCallback((symbols: any[]) => {
+    if (!symbols || !Array.isArray(symbols)) return []
     try {
-      return (
+      // Filter out any null/undefined entries first
+      const validSymbols = symbols.filter((s) => s && typeof s === 'object')
+      if (validSymbols.length === 0) return []
+      
+      return validSymbols.sort((a, b) => {
+        try {
+          const aName = String(a?.display_name || a?.symbol || "").trim()
+          const bName = String(b?.display_name || b?.symbol || "").trim()
+          if (!aName && !bName) return 0
+          if (!aName) return 1
+          if (!bName) return -1
+          return aName.localeCompare(bName)
+        } catch (sortErr) {
+          console.error("[v0] Sort error:", sortErr)
+          return 0
+        }
+      })
+    } catch (e) {
+      console.error("[v0] Error in getSymbolsOrder:", e)
+      return symbols || []
+    }
+  }, [])
+
+  return (
+    <div className={classNames('w-full h-full min-h-[400px] relative rounded-xl overflow-hidden', className)} dir='ltr'>
+      {isSmartChartReady() ? (
         <SmartChart
           id={`smartchart-${symbol}`}
-          symbol={symbol}
+          symbol={String(symbol || '').trim()}
           isMobile={isMobile}
           theme={theme}
           settings={settings}
@@ -350,22 +391,7 @@ export default function DerivSmartChartInner({
           unsubscribeQuotes={unsubscribeQuotes}
           getMarketsOrder={getMarketsOrder}
           getSubmarketsOrder={getSubmarketsOrder}
-          getSymbolsOrder={(symbols: any[]) => {
-            if (!symbols || !Array.isArray(symbols)) return []
-            try {
-              return [...symbols].sort((a, b) => {
-                const aName = String(a?.display_name || a?.symbol || "").trim()
-                const bName = String(b?.display_name || b?.symbol || "").trim()
-                if (!aName && !bName) return 0
-                if (!aName) return 1
-                if (!bName) return -1
-                return aName.localeCompare(bName)
-              })
-            } catch (e) {
-              console.error("[v0] Error in getSymbolsOrder:", e)
-              return symbols
-            }
-          }}
+          getSymbolsOrder={safeGetSymbolsOrder}
           chartData={{ activeSymbols }}
           feedCall={{ activeSymbols: false, tradingTimes: false }}
           shouldFetchTradingTimes={false}
@@ -381,22 +407,6 @@ export default function DerivSmartChartInner({
           leftMargin={80}
           showLastDigitStats={false}
         />
-      )
-    } catch (e) {
-      console.error("[v0] SmartChart Error:", e)
-      return (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/5 backdrop-blur-sm">
-          <div className="text-red-400 font-bold uppercase tracking-widest text-sm">Chart Engine Error</div>
-          <p className="text-red-300/60 text-xs mt-2">Unable to initialize trading chart</p>
-        </div>
-      )
-    }
-  }
-
-  return (
-    <div className={classNames('w-full h-full min-h-[400px] relative rounded-xl overflow-hidden', className)} dir='ltr'>
-      {isEngineReady && activeSymbols.length > 0 && isConnectionOpened ? (
-        <SafeSmartChart />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0e27]/40 backdrop-blur-sm animate-in fade-in duration-500">
            <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4" />
