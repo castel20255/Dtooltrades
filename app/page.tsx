@@ -676,19 +676,6 @@ export default function DerivAnalysisApp() {
                 )}
               </TabsContent>
 
-              <TabsContent value="charts" className="mt-0">
-                <ChartsTab
-                  symbol={symbol}
-                  theme={theme}
-                  availableSymbols={availableSymbols}
-                  onSymbolChange={changeSymbol}
-                  currentPrice={currentPrice}
-                  currentDigit={currentDigit}
-                  tickCount={tickCount}
-                />
-              </TabsContent>
-
-
               <TabsContent value="autobot" className="mt-0">
                 <AutoBotTab theme={theme} symbol={symbol} />
               </TabsContent>
