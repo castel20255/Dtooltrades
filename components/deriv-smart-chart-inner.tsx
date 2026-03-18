@@ -257,14 +257,29 @@ export default function DerivSmartChartInner({
   };
 
   const unsubscribeQuotes = (request: any) => {
-    const { symbol, granularity = 0 } = request;
-    const key = `${symbol}-${granularity}`;
-    const subId = subscriptionIdsRef.current[key];
+    try {
+      if (!request || typeof request !== 'object') {
+        console.error("[v0] Invalid request to unsubscribeQuotes:", request)
+        return
+      }
 
-    if (subId) {
-      chartWebSocket.send({ forget: subId });
-      subscriptionHandlersRef.current.delete(subId);
-      delete subscriptionIdsRef.current[key];
+      const { symbol, granularity = 0 } = request;
+      
+      if (!symbol) {
+        console.error("[v0] No symbol in unsubscribeQuotes request")
+        return
+      }
+
+      const key = `${String(symbol)}-${granularity}`;
+      const subId = subscriptionIdsRef.current[key];
+
+      if (subId) {
+        chartWebSocket.send({ forget: String(subId) });
+        subscriptionHandlersRef.current.delete(subId);
+        delete subscriptionIdsRef.current[key];
+      }
+    } catch (e) {
+      console.error("[v0] Error in unsubscribeQuotes:", e)
     }
   };
 
@@ -316,9 +331,10 @@ export default function DerivSmartChartInner({
 
   if (!mounted) return null
 
-  return (
-    <div className={classNames('w-full h-full min-h-[400px] relative rounded-xl overflow-hidden', className)} dir='ltr'>
-      {isEngineReady && activeSymbols.length > 0 && isConnectionOpened ? (
+  // SafeSmartChart wrapper to catch runtime errors
+  const SafeSmartChart = () => {
+    try {
+      return (
         <SmartChart
           id={`smartchart-${symbol}`}
           symbol={symbol}
@@ -336,7 +352,19 @@ export default function DerivSmartChartInner({
           getSubmarketsOrder={getSubmarketsOrder}
           getSymbolsOrder={(symbols: any[]) => {
             if (!symbols || !Array.isArray(symbols)) return []
-            return [...symbols].sort((a, b) => (a?.display_name || a?.symbol || "").localeCompare(b?.display_name || b?.symbol || ""))
+            try {
+              return [...symbols].sort((a, b) => {
+                const aName = String(a?.display_name || a?.symbol || "").trim()
+                const bName = String(b?.display_name || b?.symbol || "").trim()
+                if (!aName && !bName) return 0
+                if (!aName) return 1
+                if (!bName) return -1
+                return aName.localeCompare(bName)
+              })
+            } catch (e) {
+              console.error("[v0] Error in getSymbolsOrder:", e)
+              return symbols
+            }
           }}
           chartData={{ activeSymbols }}
           feedCall={{ activeSymbols: false, tradingTimes: false }}
@@ -353,6 +381,22 @@ export default function DerivSmartChartInner({
           leftMargin={80}
           showLastDigitStats={false}
         />
+      )
+    } catch (e) {
+      console.error("[v0] SmartChart Error:", e)
+      return (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/5 backdrop-blur-sm">
+          <div className="text-red-400 font-bold uppercase tracking-widest text-sm">Chart Engine Error</div>
+          <p className="text-red-300/60 text-xs mt-2">Unable to initialize trading chart</p>
+        </div>
+      )
+    }
+  }
+
+  return (
+    <div className={classNames('w-full h-full min-h-[400px] relative rounded-xl overflow-hidden', className)} dir='ltr'>
+      {isEngineReady && activeSymbols.length > 0 && isConnectionOpened ? (
+        <SafeSmartChart />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0e27]/40 backdrop-blur-sm animate-in fade-in duration-500">
            <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4" />

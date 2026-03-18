@@ -9,6 +9,7 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog"
+import { useEffect, useId } from "react"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, ShieldCheck } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -21,10 +22,12 @@ interface RiskDisclaimerModalProps {
 }
 
 export function RiskDisclaimerModal({ isOpen, onClose, onAccept, theme = "dark" }: RiskDisclaimerModalProps) {
+    const descId = useId()
+    
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className={`sm:max-w-[500px] w-[95vw] max-h-[90vh] border-none p-0 overflow-hidden rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] ${theme === "dark" ? "bg-[#0a0f1e] text-white" : "bg-white text-slate-900"
-                }`}>
+                }`} aria-describedby={descId}>
                 <div className="relative p-5 sm:p-8 overflow-y-auto max-h-[90vh]">
                     {/* Background Glow */}
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-amber-500/10 blur-[80px] rounded-full pointer-events-none" />
@@ -37,6 +40,9 @@ export function RiskDisclaimerModal({ isOpen, onClose, onAccept, theme = "dark" 
                             <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
                         </div>
                         <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight">Important Risk Disclosure</DialogTitle>
+                        <DialogDescription id={descId} className="text-sm">
+                            Please read this important risk disclosure before trading
+                        </DialogDescription>
                     </DialogHeader>
 
                     <div className={`mt-6 space-y-4 relative z-10 text-xs sm:text-sm leading-relaxed ${theme === "dark" ? "text-slate-300" : "text-slate-600"
