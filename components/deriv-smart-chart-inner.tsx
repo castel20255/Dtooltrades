@@ -82,11 +82,16 @@ export default function DerivSmartChartInner({
 
   // SmartChart request callbacks
   const requestAPI = async (req: any) => {
+    if (!req || typeof req !== 'object') {
+      console.error("[v0] Invalid request to requestAPI:", req)
+      return { error: "Invalid request" }
+    }
+
     const requestType = Object.keys(req)[0]
     
     // Intercept metadata requests for instant response
     if (requestType === 'active_symbols') {
-      return { active_symbols: activeSymbols }
+      return { active_symbols: activeSymbols && Array.isArray(activeSymbols) ? activeSymbols : [] }
     }
     
     if (requestType === 'trading_times') {
@@ -111,10 +116,21 @@ export default function DerivSmartChartInner({
     }
   }
 
-  const getQuotes = async (params: { symbol: string; granularity: number; count: number; start?: number; end?: number }) => {
+  const getQuotes = async (params: any) => {
+    if (!params || typeof params !== 'object') {
+      console.error("[v0] Invalid params to getQuotes:", params)
+      return { candles: [], history: { prices: [], times: [] } }
+    }
+
     const { symbol, granularity, count, start, end } = params;
+    
+    if (!symbol) {
+      console.error("[v0] No symbol provided to getQuotes")
+      return { candles: [], history: { prices: [], times: [] } }
+    }
+
     const request: any = {
-      ticks_history: symbol,
+      ticks_history: String(symbol),
       style: granularity ? 'candles' : 'ticks',
       count,
       end: end ? String(end) : 'latest',
@@ -129,26 +145,40 @@ export default function DerivSmartChartInner({
       if (response.error) throw new Error(response.error.message);
 
       const result: any = {};
-      if (response.candles) {
+      if (response.candles && Array.isArray(response.candles)) {
         result.candles = response.candles.map((c: any) => ({
           open: +c.open, high: +c.high, low: +c.low, close: +c.close, epoch: +c.epoch,
         }));
-      } else if (response.history) {
+      } else if (response.history && response.history.prices && response.history.times) {
         result.history = {
           prices: response.history.prices.map((p: any) => +p),
           times: response.history.times.map((t: any) => +t),
         };
+      } else {
+        result.candles = [];
+        result.history = { prices: [], times: [] };
       }
       return result;
     } catch (e) {
       console.error("[ChartAPI] getQuotes error:", e);
-      throw e;
+      return { candles: [], history: { prices: [], times: [] } };
     }
   };
 
   const subscribeQuotes = (request: any, callback: (quote: any) => void) => {
+    if (!request || typeof request !== 'object') {
+      console.error("[v0] Invalid request to subscribeQuotes:", request)
+      return () => {}
+    }
+
     const { symbol, granularity = 0 } = request;
-    const key = `${symbol}-${granularity}`;
+    
+    if (!symbol) {
+      console.error("[v0] No symbol in subscribeQuotes request")
+      return () => {}
+    }
+
+    const key = `${String(symbol)}-${granularity}`;
 
     const subRequest = {
       ...request,
@@ -159,41 +189,53 @@ export default function DerivSmartChartInner({
     };
 
     const messageHandler = (msg: any) => {
-      // Filter out invalid quotes
-      if (msg?.tick && (msg.tick.quote === null || msg.tick.quote === undefined || msg.tick.quote === 0)) return;
-      
-      // Route messages to this subscriber
-      if (msg.subscription?.id && msg.subscription.id === subscriptionIdsRef.current[key]) {
-         handleResponse(msg);
-      } else if ((msg.tick?.symbol === symbol || msg.ohlc?.symbol === symbol) && (!granularity || msg.ohlc?.granularity === granularity)) {
-         handleResponse(msg);
+      try {
+        // Filter out invalid quotes
+        if (msg?.tick && (msg.tick.quote === null || msg.tick.quote === undefined || msg.tick.quote === 0)) return;
+        
+        // Route messages to this subscriber
+        if (msg.subscription?.id && msg.subscription.id === subscriptionIdsRef.current[key]) {
+           handleResponse(msg);
+        } else if ((msg.tick?.symbol === symbol || msg.ohlc?.symbol === symbol) && (!granularity || msg.ohlc?.granularity === granularity)) {
+           handleResponse(msg);
+        }
+      } catch (e) {
+        console.error("[v0] Error in messageHandler:", e)
       }
     };
 
     const handleResponse = (response: any) => {
-      if (response.subscription?.id) {
-        subscriptionIdsRef.current[key] = response.subscription.id;
-      }
+      try {
+        if (response.subscription?.id) {
+          subscriptionIdsRef.current[key] = response.subscription.id;
+        }
 
-      if (response.tick) {
-        const { tick } = response;
-        callback({
-          Date: new Date(tick.epoch * 1000).toISOString(),
-          Close: tick.quote,
-          tick,
-          DT: new Date(tick.epoch * 1000),
-        });
-      } else if (response.ohlc) {
-        const { ohlc } = response;
-        callback({
-          Date: new Date(ohlc.open_time * 1000).toISOString(),
-          Open: parseFloat(ohlc.open),
-          High: parseFloat(ohlc.high),
-          Low: parseFloat(ohlc.low),
-          Close: parseFloat(ohlc.close),
-          ohlc,
-          DT: new Date(ohlc.open_time * 1000),
-        });
+        if (response.tick) {
+          const { tick } = response;
+          if (tick.epoch !== null && tick.epoch !== undefined && tick.quote !== null && tick.quote !== undefined) {
+            callback({
+              Date: new Date(tick.epoch * 1000).toISOString(),
+              Close: +tick.quote,
+              tick,
+              DT: new Date(tick.epoch * 1000),
+            });
+          }
+        } else if (response.ohlc) {
+          const { ohlc } = response;
+          if (ohlc.open_time !== null && ohlc.open_time !== undefined) {
+            callback({
+              Date: new Date(ohlc.open_time * 1000).toISOString(),
+              Open: parseFloat(String(ohlc.open)),
+              High: parseFloat(String(ohlc.high)),
+              Low: parseFloat(String(ohlc.low)),
+              Close: parseFloat(String(ohlc.close)),
+              ohlc,
+              DT: new Date(ohlc.open_time * 1000),
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[v0] Error in handleResponse:", e)
       }
     };
 
@@ -204,6 +246,8 @@ export default function DerivSmartChartInner({
         subscriptionIdsRef.current[key] = resp.subscription.id;
         subscriptionHandlersRef.current.set(resp.subscription.id, messageHandler);
       }
+    }).catch(e => {
+      console.error("[v0] Error in subscribeQuotes sendAndWait:", e)
     });
 
     return () => {
@@ -235,12 +279,30 @@ export default function DerivSmartChartInner({
 
   const getMarketsOrder = useCallback((active_symbols: any[]) => {
     if (!active_symbols || !Array.isArray(active_symbols)) return []
-    return Array.from(new Set(active_symbols.map(s => s?.market).filter(Boolean))).sort()
+    try {
+      return Array.from(new Set(active_symbols.map(s => {
+        const market = s?.market
+        if (market === null || market === undefined) return null
+        return String(market)
+      }).filter(Boolean))).sort()
+    } catch (e) {
+      console.error("[v0] Error in getMarketsOrder:", e)
+      return []
+    }
   }, [])
 
   const getSubmarketsOrder = useCallback((active_symbols: any[]) => {
     if (!active_symbols || !Array.isArray(active_symbols)) return []
-    return Array.from(new Set(active_symbols.map(s => s?.submarket).filter(Boolean))).sort()
+    try {
+      return Array.from(new Set(active_symbols.map(s => {
+        const submarket = s?.submarket
+        if (submarket === null || submarket === undefined) return null
+        return String(submarket)
+      }).filter(Boolean))).sort()
+    } catch (e) {
+      console.error("[v0] Error in getSubmarketsOrder:", e)
+      return []
+    }
   }, [])
 
   const [mounted, setMounted] = useState(false)

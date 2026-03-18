@@ -90,6 +90,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
                   alt="PH Logo"
                   width={48}
                   height={48}
+                  priority
                   className="w-10 h-10 sm:w-12 sm:h-12 animate-pulse"
                 />
               </div>
@@ -118,6 +119,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
                   alt="PH Logo"
                   width={64}
                   height={64}
+                  priority
                   className="w-9 h-9 sm:w-16 sm:h-16 drop-shadow-[0_0_15px_rgba(37,99,235,0.5)]"
                 />
               </motion.div>
