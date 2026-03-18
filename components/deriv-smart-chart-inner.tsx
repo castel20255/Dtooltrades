@@ -329,10 +329,8 @@ export default function DerivSmartChartInner({
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  if (!mounted) return null
-
   // Validate all required data before rendering SmartChart
-  const isSmartChartReady = () => {
+  const isSmartChartReady = useCallback(() => {
     if (!isEngineReady) return false
     if (!activeSymbols || !Array.isArray(activeSymbols) || activeSymbols.length === 0) return false
     if (!isConnectionOpened) return false
@@ -344,7 +342,7 @@ export default function DerivSmartChartInner({
     if (!getMarketsOrder || typeof getMarketsOrder !== 'function') return false
     if (!getSubmarketsOrder || typeof getSubmarketsOrder !== 'function') return false
     return true
-  }
+  }, [isEngineReady, activeSymbols, isConnectionOpened, symbol, requestAPI, getQuotes, subscribeQuotes, unsubscribeQuotes, getMarketsOrder, getSubmarketsOrder])
 
   // Defensive wrapper for all callbacks to prevent toString errors
   const safeGetSymbolsOrder = useCallback((symbols: any[]) => {
@@ -373,9 +371,11 @@ export default function DerivSmartChartInner({
     }
   }, [])
 
+  if (!mounted) return null
+
   return (
     <div className={classNames('w-full h-full min-h-[400px] relative rounded-xl overflow-hidden', className)} dir='ltr'>
-      {isSmartChartReady() ? (
+      {isSmartChartReady && isSmartChartReady() ? (
         <SmartChart
           id={`smartchart-${symbol}`}
           symbol={String(symbol || '').trim()}

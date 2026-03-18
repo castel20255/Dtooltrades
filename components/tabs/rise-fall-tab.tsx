@@ -5,7 +5,6 @@ import { Last40Digits } from "@/components/last-40-digits"
 import type { Signal, AnalysisResult } from "@/lib/analysis-engine"
 import { MarketSelector } from "@/components/market-selector"
 import type { DerivSymbol } from "@/hooks/use-deriv"
-import { DerivSmartChart } from "@/components/deriv-smart-chart"
 
 interface RiseFallTabProps {
   analysis: AnalysisResult | null
@@ -51,10 +50,6 @@ export function RiseFallTab({ analysis, signals, currentPrice, recentDigits, the
           : "bg-white border-gray-200 shadow-lg"
           }`}
       >
-        <div className="w-full h-[400px] mb-8 rounded-xl overflow-hidden border border-white/5 bg-[#050505]/50">
-           <DerivSmartChart symbol={symbol || "R_100"} theme={theme} hideToolbar />
-        </div>
-
         <h2
           className={`text-2xl sm:text-3xl font-bold mb-6 text-center ${theme === "dark" ? "text-white" : "text-gray-900"}`}
         >
