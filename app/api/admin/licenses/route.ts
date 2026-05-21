@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -34,46 +32,46 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch all users with their license and payment stats
-    const { data: users, error: usersError } = await supabase
-      .from('users')
+    // Fetch all access keys with device counts
+    const { data: accessKeys, error: keysError } = await supabase
+      .from('access_keys')
       .select(`
         id,
-        email,
-        full_name,
-        phone,
-        country,
+        user_id,
+        key_prefix,
+        status,
+        expires_at,
         created_at,
-        access_keys(count),
-        payments(sum(amount_cents))
+        last_used_at,
+        max_devices,
+        devices(count)
       `)
       .order('created_at', { ascending: false })
 
-    if (usersError) {
-      throw usersError
+    if (keysError) {
+      throw keysError
     }
 
-    const formattedUsers = users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      phone: user.phone,
-      country: user.country,
-      created_at: user.created_at,
-      license_count: user.access_keys?.[0]?.count || 0,
-      active_licenses: 0,
-      total_spent: (user.payments?.[0]?.['sum(amount_cents)'] || 0) / 100,
-      last_payment: null,
+    const formattedKeys = accessKeys.map((key) => ({
+      id: key.id,
+      user_id: key.user_id,
+      key_prefix: key.key_prefix,
+      status: key.status,
+      expires_at: key.expires_at,
+      created_at: key.created_at,
+      last_used_at: key.last_used_at,
+      max_devices: key.max_devices,
+      device_count: key.devices?.[0]?.count || 0,
     }))
 
     return NextResponse.json({
-      users: formattedUsers,
-      count: formattedUsers.length,
+      licenses: formattedKeys,
+      count: formattedKeys.length,
     })
   } catch (error) {
-    console.error('[Admin API] Error fetching users:', error)
+    console.error('Error fetching licenses:', error)
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

@@ -1,5 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase"
+
+// Supabase is optional for this route during development
+let supabaseAdmin: any = null
+
+try {
+    const { supabaseAdmin: imported } = require("@/lib/supabase")
+    supabaseAdmin = imported
+} catch {
+    // Supabase not configured, route will return 503
+}
 
 async function getGeoFromIP(ip: string): Promise<{ country: string; city: string }> {
     if (!ip || ip === "unknown" || ip === "::1" || ip.startsWith("127.") || ip.startsWith("192.168.") || ip.startsWith("10.")) {
@@ -21,6 +30,10 @@ async function getGeoFromIP(ip: string): Promise<{ country: string; city: string
 
 export async function POST(request: NextRequest) {
     try {
+        if (!supabaseAdmin) {
+            return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+        }
+
         const data = await request.json()
         const { loginId, name, type, currency, balance, status } = data
 
